@@ -35,7 +35,8 @@
       'strings': new StringTest('strings', options.log),
       'strings-channel': new ChannelStringTest('strings-channel', options.log),
       'transfer': new TransferTest('transfer', options.log),
-      'transfer-channel': new ChannelTransferTest('transfer-channel', options.log)
+      'transfer-channel': new ChannelTransferTest('transfer-channel', options.log),
+      'indexeddb': new indexedDBTest('indexeddb', options.log),
     };
 
     this.run();
@@ -57,8 +58,14 @@
         json: false,
         cloning: false,
         transfer: false,
-        channels: false
+        channels: false,
+        indexeddb: false
       };
+
+      // check indexeddb
+      if (typeof(window.indexedDB) !== 'undefined') {
+        features.indexeddb = true
+      }
 
       // check JSON transfer
       try {
@@ -204,7 +211,9 @@
         if (features['channels']) {
           Object.keys(features).forEach(function(f) {
             if (features[f] && ['cloning', 'channels'].indexOf(f) === -1) {
-              tests.push(_test.runners[f + '-channel']);
+              if (f != 'indexeddb') {
+                tests.push(_test.runners[f + '-channel']);
+              }
             }
           });
         }
@@ -349,6 +358,27 @@
     }
   };
 
+  // indexedDB test
+  function indexedDBTest() {
+    Test.apply(this, arguments);
+  }
+  indexedDBTest.prototype = Object.create(Test.prototype);
+  indexedDBTest.prototype.send = function(data) {
+    var payload = this.initSend(data);
+    var key = "" + payload.id;
+    idbKeyval.set(key, payload).then(() => {
+      this.worker.postMessage(key)
+    })
+    return this.trips[payload.id].isComplete;
+  };
+  indexedDBTest.prototype.handle = function(msg) {
+    var key = msg.data;
+    idbKeyval.get(key + '-output').then(val => {
+      if (val.success) {
+        this.complete(val.data);
+      }
+    })
+  };
 
   // String tests
   function StringTest() {
